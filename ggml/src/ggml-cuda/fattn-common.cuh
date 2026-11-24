@@ -1091,8 +1091,16 @@ void launch_fattn(
         GGML_ASSERT(f16_extra.K != 0);
         half * K_f16 = (half *) f16_extra.K;
         if (ggml_is_contiguously_allocated(K)) {
-            to_fp16_cuda_t to_fp16 = ggml_get_to_fp16_cuda(K->type);
-            to_fp16(K_data, K_f16, ggml_nelements(K), main_stream);
+            // with kv_rows the kernel reads only the listed rows and row 0 (for padding), so convert only those
+            const to_fp16_rows_cuda_t to_fp16_rows = kv_rows && nb12*bs == K->ne[0]*ts && nb11 == K->ne[2]*nb12 ?
+                ggml_get_to_fp16_rows_cuda(K->type) : nullptr;
+            if (to_fp16_rows) {
+                to_fp16_rows(K_data, K_f16, K->ne[0]*K->ne[2], K->ne[1],
+                    (const int32_t *) kv_rows->data, ggml_nelements(kv_rows), main_stream);
+            } else {
+                to_fp16_cuda_t to_fp16 = ggml_get_to_fp16_cuda(K->type);
+                to_fp16(K_data, K_f16, ggml_nelements(K), main_stream);
+            }
 
             nb11 = nb11*bs*sizeof(half)/ts;
             nb12 = nb12*bs*sizeof(half)/ts;
@@ -1125,8 +1133,15 @@ void launch_fattn(
             GGML_ASSERT(f16_extra.V != 0);
             half * V_f16 = (half *) f16_extra.V;
             if (ggml_is_contiguously_allocated(V)) {
-                to_fp16_cuda_t to_fp16 = ggml_get_to_fp16_cuda(V->type);
-                to_fp16(V_data, V_f16, ggml_nelements(V), main_stream);
+                const to_fp16_rows_cuda_t to_fp16_rows = kv_rows && nb22*bs == V->ne[0]*ts && nb21 == V->ne[2]*nb22 ?
+                    ggml_get_to_fp16_rows_cuda(V->type) : nullptr;
+                if (to_fp16_rows) {
+                    to_fp16_rows(V_data, V_f16, V->ne[0]*V->ne[2], V->ne[1],
+                        (const int32_t *) kv_rows->data, ggml_nelements(kv_rows), main_stream);
+                } else {
+                    to_fp16_cuda_t to_fp16 = ggml_get_to_fp16_cuda(V->type);
+                    to_fp16(V_data, V_f16, ggml_nelements(V), main_stream);
+                }
                 V_data = (char *) V_f16;
 
                 nb21 = nb21*bs*sizeof(half)/ts;

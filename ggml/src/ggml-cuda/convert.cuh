@@ -31,6 +31,13 @@ to_fp32_nc_cuda_t ggml_get_to_fp32_nc_cuda(ggml_type type);
 to_fp16_nc_cuda_t ggml_get_to_fp16_nc_cuda(ggml_type type);
 to_bf16_nc_cuda_t ggml_get_to_bf16_nc_cuda(ggml_type type);
 
+// same as to_fp16 for ne01 contiguous rows of ne00 elements each,
+// but only the rows listed in rows[0..n_rows) and row 0 are converted, negative entries are skipped
+typedef void (*to_fp16_rows_cuda_t)(const void * x, half * y,
+    int64_t ne00, int64_t ne01, const int32_t * rows, int64_t n_rows, cudaStream_t stream);
+
+to_fp16_rows_cuda_t ggml_get_to_fp16_rows_cuda(ggml_type type);
+
 template<typename dst_t, typename src_t>
  __host__ __device__ inline dst_t ggml_cuda_cast(src_t x) {
     if constexpr (std::is_same_v<dst_t, src_t>) {
